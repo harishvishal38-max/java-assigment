@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ComplaintHub - Java OOP Showcase & Tracking System</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- Top Navigation Bar -->
+  <header class="navbar">
+    <a href="#" class="nav-brand">
+      <div class="brand-icon">☕</div>
+      <div class="brand-text">
+        <h1>ComplaintHub <span class="brand-badge">Java 17 OOP</span></h1>
+      </div>
+    </a>
+
+    <nav class="nav-tabs">
+      <button class="nav-tab-btn active" data-tab="live-tab">🚀 Live System</button>
+      <button class="nav-tab-btn" data-tab="oop-tab">💡 OOP Concepts</button>
+      <button class="nav-tab-btn" data-tab="uml-tab">📐 Class Diagram</button>
+      <button class="nav-tab-btn" data-tab="terminal-tab">💻 Terminal CLI</button>
+      <button class="nav-tab-btn" data-tab="code-tab">📜 Source Code</button>
+      <button class="nav-tab-btn" data-tab="docs-tab">📖 Project Report</button>
+    </nav>
+
+    <div class="nav-actions">
+      <button id="theme-toggle-btn" class="theme-btn" title="Toggle Theme">🌙 Dark</button>
+      <div id="user-pill-container"></div>
+    </div>
+  </header>
+
+  <!-- Hero Banner -->
+  <section class="hero-banner">
+    <div class="hero-content">
+      <div class="hero-tag">
+        <span>✨ Java Object-Oriented Complaint Registration & Tracking</span>
+      </div>
+      <h2 class="hero-title">Robust Complaint Tracking Powered by Java OOP</h2>
+      <p class="hero-desc">
+        A practical realization of Encapsulation, Inheritance, Abstraction, Polymorphism, Collections, and Custom Exceptions with interactive web and terminal simulations.
+      </p>
+
+      <div class="quick-bar">
+        <span class="quick-label">⚡ Quick Demo Logins:</span>
+        <button class="quick-login-chip" onclick="quickLogin('dinesh')">👤 Dinesh (Customer)</button>
+        <button class="quick-login-chip" onclick="quickLogin('ram')">👤 Ram (Customer)</button>
+        <button class="quick-login-chip" onclick="quickLogin('sita')">👤 Sita (Customer)</button>
+        <button class="quick-login-chip" onclick="quickLogin('priya')">👤 Priya (Customer)</button>
+        <button class="quick-login-chip" onclick="quickLogin('raj')">👤 Raj (Customer)</button>
+        <button class="quick-login-chip admin-chip" onclick="quickLogin('admin')">🛡️ Admin (Superuser)</button>
+        <button class="action-btn" onclick="resetData()" style="padding:0.35rem 0.75rem; font-size:0.8rem; margin-left:0.5rem;" title="Reset state to initial 5 sample complaints">🔄 Reset Data</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Main Content Area -->
+  <main class="main-container">
+
+    <!-- ================= TAB 1: LIVE SYSTEM ================= -->
+    <div id="live-tab" class="tab-panel active">
+      
+      <!-- Customer View -->
+      <div id="customer-view">
+        <div style="margin-bottom:1.25rem; display:flex; justify-content:space-between; align-items:center;">
+          <div>
+            <h3 style="font-size:1.35rem; font-weight:800;">Customer Self-Service Portal</h3>
+            <p id="customer-welcome-text" style="color:var(--text-muted); font-size:0.9rem;">File new complaints or track existing tickets in real-time.</p>
+          </div>
+          <button class="action-btn" onclick="quickLogin('admin')">Switch to Admin Portal ➔</button>
+        </div>
+
+        <div class="system-grid">
+          <!-- Left: Filing Form -->
+          <div class="card">
+            <div class="card-header">
+              <h4 class="card-title">📝 File a Complaint</h4>
+            </div>
+            <form id="file-complaint-form">
+              <div class="form-group">
+                <label class="form-label">Category</label>
+                <select id="comp-category" class="form-select">
+                  <option value="Billing">Billing (Invoices, Double Charge)</option>
+                  <option value="Service" selected>Service (Network, Outage)</option>
+                  <option value="Product">Product (Damaged, Defect)</option>
+                  <option value="Other">Other (General Inquiry, Account)</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Priority Level (Java Enum)</label>
+                <div class="priority-selector">
+                  <button type="button" class="priority-btn" data-val="LOW">LOW</button>
+                  <button type="button" class="priority-btn selected" data-val="MEDIUM">MEDIUM</button>
+                  <button type="button" class="priority-btn" data-val="HIGH">HIGH</button>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Complaint Description</label>
+                <textarea id="comp-desc" class="form-textarea" rows="4" placeholder="Detail your grievance clearly..." required></textarea>
+              </div>
+
+              <button type="submit" class="btn-primary">
+                <span>Submit Grievance</span>
+                <span>➔</span>
+              </button>
+            </form>
+          </div>
+
+          <!-- Right: Tracking & My Complaints -->
+          <div>
+            <!-- Track Search Box -->
+            <div class="card" style="margin-bottom:1.5rem;">
+              <div class="card-header">
+                <h4 class="card-title">🔍 Track Complaint by ID</h4>
+                <span class="card-subtitle">Tests <code style="font-size:0.75rem; background:rgba(0,0,0,0.06); padding:2px 5px; border-radius:4px;">ComplaintNotFoundException</code></span>
+              </div>
+              <form id="track-form" style="display:flex; gap:0.75rem;">
+                <input type="number" id="track-id-input" class="form-input" placeholder="e.g. 1001, 1002, 1003, 9999..." required style="flex:1;">
+                <button type="submit" class="btn-primary" style="width:auto; padding:0.65rem 1.25rem;">Track Ticket</button>
+              </form>
+
+              <!-- Live Stepper / Result Box -->
+              <div id="tracking-result" class="timeline-card" style="display:none;">
+                <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                  <div>
+                    <h5 style="font-size:1.1rem; font-weight:700;">Complaint <span id="track-display-id" style="color:var(--primary);">#1001</span></h5>
+                    <p style="font-size:0.85rem; color:var(--text-muted);">Filed by <strong id="track-display-customer">User</strong> on <span id="track-display-date">2026-11-09</span></p>
+                  </div>
+                  <div style="display:flex; gap:0.4rem;">
+                    <span id="track-display-priority" class="badge badge-high">HIGH</span>
+                    <span id="track-display-status" class="badge badge-registered">REGISTERED</span>
+                  </div>
+                </div>
+
+                <!-- Stepper Progress Visualizer -->
+                <div class="stepper">
+                  <div id="stepper-progress-bar" class="stepper-progress" style="width: 0%;"></div>
+                  <div id="step-registered" class="step-item active">
+                    <div class="step-dot">1</div>
+                    <div class="step-title">REGISTERED</div>
+                    <div class="step-sub">Ticket Logged</div>
+                  </div>
+                  <div id="step-progress" class="step-item">
+                    <div class="step-dot">2</div>
+                    <div class="step-title">IN_PROGRESS</div>
+                    <div class="step-sub">Under Review</div>
+                  </div>
+                  <div id="step-resolved" class="step-item">
+                    <div class="step-dot">3</div>
+                    <div class="step-title">RESOLVED</div>
+                    <div class="step-sub">Closed with Remarks</div>
+                  </div>
+                </div>
+
+                <div style="background:var(--card-bg); padding:1rem; border-radius:var(--radius-md); border:1px solid var(--card-border); margin-top:1rem;">
+                  <div style="font-size:0.85rem; margin-bottom:0.4rem;"><strong>Category:</strong> <span id="track-display-category">Service</span></div>
+                  <div style="font-size:0.85rem; margin-bottom:0.4rem;"><strong>Issue:</strong> <span id="track-display-desc">Internet connection is down</span></div>
+                  <div style="font-size:0.85rem; color:var(--primary);"><strong>Official Remarks:</strong> <span id="track-display-remarks" style="font-style:italic;">Awaiting review</span></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Customer's Own Complaints List -->
+            <div class="card">
+              <div class="card-header">
+                <h4 class="card-title">📂 My Registered Complaints</h4>
+                <span class="card-subtitle">Filtered by logged-in customer</span>
+              </div>
+              <div id="my-complaints-list"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Admin View -->
+      <div id="admin-view" style="display:none;">
+        <div style="margin-bottom:1.5rem; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
+          <div>
+            <h3 style="font-size:1.4rem; font-weight:800; display:flex; align-items:center; gap:0.5rem;">
+              <span>🛡️ Administrator Command Center</span>
+              <span class="badge" style="background:#fee2e2; color:#b91c1c;">ADMIN ROLE</span>
+            </h3>
+            <p style="color:var(--text-muted); font-size:0.9rem;">Full operational control over complaints, lifecycle status changes, remarks, and analytics reports.</p>
+          </div>
+          <div style="display:flex; gap:0.5rem;">
+            <button class="action-btn" onclick="openSummaryReport()">📊 Generate Summary Report</button>
+            <button class="action-btn" onclick="quickLogin('dinesh')">Switch to Customer View ➔</button>
+          </div>
+        </div>
+
+        <!-- Metric KPI Cards -->
+        <div class="stats-grid">
+          <div class="stat-card stat-total">
+            <div class="stat-label">Total Grievances</div>
+            <div id="stat-total" class="stat-value">5</div>
+          </div>
+          <div class="stat-card stat-registered">
+            <div class="stat-label">Registered / Pending</div>
+            <div id="stat-registered" class="stat-value">2</div>
+          </div>
+          <div class="stat-card stat-progress">
+            <div class="stat-label">In Progress</div>
+            <div id="stat-progress" class="stat-value">2</div>
+          </div>
+          <div class="stat-card stat-resolved">
+            <div class="stat-label">Resolved / Closed</div>
+            <div id="stat-resolved" class="stat-value">1</div>
+          </div>
+        </div>
+
+        <!-- Master Table Card -->
+        <div class="card">
+          <div class="card-header" style="flex-wrap:wrap; gap:1rem;">
+            <h4 class="card-title">📋 Master Complaint Repository (LinkedHashMap)</h4>
+            
+            <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+              <input type="text" id="admin-search-input" class="form-input" placeholder="Search ID, customer, desc..." style="width:220px; padding:0.4rem 0.75rem; font-size:0.825rem;">
+              <select id="admin-filter-status" class="form-select" style="width:140px; padding:0.4rem; font-size:0.825rem;">
+                <option value="ALL">All Statuses</option>
+                <option value="REGISTERED">REGISTERED</option>
+                <option value="IN_PROGRESS">IN_PROGRESS</option>
+                <option value="RESOLVED">RESOLVED</option>
+              </select>
+              <select id="admin-filter-priority" class="form-select" style="width:130px; padding:0.4rem; font-size:0.825rem;">
+                <option value="ALL">All Priorities</option>
+                <option value="LOW">LOW</option>
+                <option value="MEDIUM">MEDIUM</option>
+                <option value="HIGH">HIGH</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="table-responsive">
+            <table class="complaint-table">
+              <thead>
+                <tr>
+                  <th>Ticket ID</th>
+                  <th>Customer</th>
+                  <th>Category</th>
+                  <th>Priority</th>
+                  <th>Status</th>
+                  <th>Remarks / Action</th>
+                  <th>Management</th>
+                </tr>
+              </thead>
+              <tbody id="admin-table-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ================= TAB 2: OOP CONCEPTS ================= -->
+    <div id="oop-tab" class="tab-panel">
+      <div style="margin-bottom:1.5rem; text-align:center;">
+        <h3 style="font-size:1.6rem; font-weight:800; margin-bottom:0.4rem;">☕ Java Object-Oriented Principles in Action</h3>
+        <p style="color:var(--text-muted); max-width:700px; margin:0 auto;">
+          The Complaint Tracking System is engineered to demonstrate the 8 core pillars of Java OOP. Explore how each principle solves concrete software architecture challenges.
+        </p>
+      </div>
+
+      <div id="oop-grid" class="oop-grid"></div>
+    </div>
+
+    <!-- ================= TAB 3: UML CLASS DIAGRAM ================= -->
+    <div id="uml-tab" class="tab-panel">
+      <div style="margin-bottom:1.5rem;">
+        <h3 style="font-size:1.6rem; font-weight:800; margin-bottom:0.4rem;">📐 Class Design & Architecture Diagram</h3>
+        <p style="color:var(--text-muted);">
+          Visual representation of class hierarchies, interface implementations, and service relationships.
+        </p>
+      </div>
+
+      <div class="uml-diagram-canvas">
+        <div class="uml-grid">
+
+          <!-- User Class Hierarchy -->
+          <div style="display:flex; flex-direction:column; gap:1.25rem;">
+            <!-- Abstract User -->
+            <div class="uml-box">
+              <div class="uml-header">
+                <span class="uml-stereotype">&lt;&lt;abstract&gt;&gt;</span>
+                User
+              </div>
+              <div class="uml-content">
+                <div class="uml-section">
+                  <div class="uml-member"><span class="uml-visibility prot">#</span> name : String</div>
+                  <div class="uml-member"><span class="uml-visibility prot">#</span> password : String</div>
+                </div>
+                <div class="uml-section">
+                  <div class="uml-member"><span class="uml-visibility pub">+</span> getName() : String</div>
+                  <div class="uml-member"><span class="uml-visibility pub">+</span> authenticate(name, pass) : boolean</div>
+                  <div class="uml-member" style="font-style:italic;"><span class="uml-visibility pub">+</span> getRole()* : String</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Inheritance Arrows -->
+            <div style="text-align:center; color:var(--primary); font-size:1.2rem; font-weight:700;">▲ ▲ (Inheritance / extends)</div>
+
+            <!-- Subclasses Row -->
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem;">
+              <div class="uml-box">
+                <div class="uml-header">Customer</div>
+                <div class="uml-content">
+                  <div class="uml-section">
+                    <div class="uml-member" style="color:var(--text-muted); font-size:0.75rem;">Inherits User fields</div>
+                  </div>
+                  <div class="uml-section">
+                    <div class="uml-member"><span class="uml-visibility pub">+</span> getRole() : "CUSTOMER"</div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="uml-box">
+                <div class="uml-header">Admin</div>
+                <div class="uml-content">
+                  <div class="uml-section">
+                    <div class="uml-member" style="color:var(--text-muted); font-size:0.75rem;">Inherits User fields</div>
+                  </div>
+                  <div class="uml-section">
+                    <div class="uml-member"><span class="uml-visibility pub">+</span> getRole() : "ADMIN"</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Trackable Interface & Complaint -->
+          <div style="display:flex; flex-direction:column; gap:1.25rem;">
+            <!-- Trackable Interface -->
+            <div class="uml-box">
+              <div class="uml-header" style="background:#ecfeff; color:#0891b2;">
+                <span class="uml-stereotype">&lt;&lt;interface&gt;&gt;</span>
+                Trackable
+              </div>
+              <div class="uml-content">
+                <div class="uml-section">
+                  <div class="uml-member"><span class="uml-visibility pub">+</span> updateStatus(newStatus) : void</div>
+                  <div class="uml-member"><span class="uml-visibility pub">+</span> getStatus() : Status</div>
+                </div>
+              </div>
+            </div>
+
+            <div style="text-align:center; color:#0891b2; font-size:1.2rem; font-weight:700;">▲ (implements)</div>
+
+            <!-- Complaint Class -->
+            <div class="uml-box">
+              <div class="uml-header">Complaint</div>
+              <div class="uml-content">
+                <div class="uml-section">
+                  <div class="uml-member"><span class="uml-visibility priv">-</span> counter : int = 1000</div>
+                  <div class="uml-member"><span class="uml-visibility priv">-</span> id : int</div>
+                  <div class="uml-member"><span class="uml-visibility priv">-</span> customerName : String</div>
+                  <div class="uml-member"><span class="uml-visibility priv">-</span> category : String</div>
+                  <div class="uml-member"><span class="uml-visibility priv">-</span> description : String</div>
+                  <div class="uml-member"><span class="uml-visibility priv">-</span> priority : Priority</div>
+                  <div class="uml-member"><span class="uml-visibility priv">-</span> dateFiled : LocalDate</div>
+                  <div class="uml-member"><span class="uml-visibility priv">-</span> status : Status</div>
+                  <div class="uml-member"><span class="uml-visibility priv">-</span> remarks : String</div>
+                </div>
+                <div class="uml-section">
+                  <div class="uml-member"><span class="uml-visibility pub">+</span> getId() : int</div>
+                  <div class="uml-member"><span class="uml-visibility pub">+</span> updateStatus(Status) : void</div>
+                  <div class="uml-member"><span class="uml-visibility pub">+</span> setRemarks(String) : void</div>
+                  <div class="uml-member"><span class="uml-visibility pub">+</span> toString() : String</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Service Layer, Enums & Exceptions -->
+          <div style="display:flex; flex-direction:column; gap:1rem;">
+            <!-- ComplaintService -->
+            <div class="uml-box">
+              <div class="uml-header" style="background:#fef3c7; color:#b45309;">
+                <span class="uml-stereotype">&lt;&lt;Service Controller&gt;&gt;</span>
+                ComplaintService
+              </div>
+              <div class="uml-content">
+                <div class="uml-section">
+                  <div class="uml-member"><span class="uml-visibility priv">-</span> complaints : Map&lt;Integer, Complaint&gt;</div>
+                  <div class="uml-member"><span class="uml-visibility priv">-</span> users : List&lt;User&gt;</div>
+                </div>
+                <div class="uml-section">
+                  <div class="uml-member"><span class="uml-visibility pub">+</span> registerCustomer(name, pass)</div>
+                  <div class="uml-member"><span class="uml-visibility pub">+</span> login(name, pass) : User</div>
+                  <div class="uml-member"><span class="uml-visibility pub">+</span> fileComplaint(...) : Complaint</div>
+                  <div class="uml-member"><span class="uml-visibility pub">+</span> findById(id) : Complaint</div>
+                  <div class="uml-member"><span class="uml-visibility pub">+</span> updateComplaint(id, status, rem)</div>
+                  <div class="uml-member"><span class="uml-visibility pub">+</span> countByStatus(Status) : int</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Enums & Exception -->
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem;">
+              <div class="uml-box">
+                <div class="uml-header" style="font-size:0.8rem; padding:0.4rem;">
+                  <span class="uml-stereotype">&lt;&lt;enum&gt;&gt;</span> Priority
+                </div>
+                <div class="uml-content" style="font-size:0.75rem; text-align:center;">
+                  LOW<br>MEDIUM<br>HIGH
+                </div>
+              </div>
+
+              <div class="uml-box">
+                <div class="uml-header" style="font-size:0.8rem; padding:0.4rem;">
+                  <span class="uml-stereotype">&lt;&lt;enum&gt;&gt;</span> Status
+                </div>
+                <div class="uml-content" style="font-size:0.75rem; text-align:center;">
+                  REGISTERED<br>IN_PROGRESS<br>RESOLVED
+                </div>
+              </div>
+            </div>
+
+            <div class="uml-box">
+              <div class="uml-header" style="background:#fee2e2; color:#b91c1c; font-size:0.85rem; padding:0.4rem;">
+                <span class="uml-stereotype">&lt;&lt;exception&gt;&gt;</span> ComplaintNotFoundException
+              </div>
+              <div class="uml-content" style="font-size:0.75rem;">
+                extends java.lang.Exception<br>
+                <code>ComplaintNotFoundException(int id)</code>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- ================= TAB 4: TERMINAL SIMULATOR ================= -->
+    <div id="terminal-tab" class="tab-panel">
+      <!-- Replay Controls Bar -->
+      <div class="replay-bar">
+        <div>
+          <div class="screen-indicator">
+            <span id="replay-screen-badge">Screen 1 of 13</span>
+            <span style="color:var(--text-muted); font-size:0.8rem;">(From Academic Project Report)</span>
+          </div>
+          <div id="replay-screen-title" style="font-weight:700; font-size:1rem; margin-top:0.2rem;">Customer Registrations</div>
+          <div id="replay-screen-desc" style="font-size:0.825rem; color:var(--text-muted);">Registering initial customers from the PDF session.</div>
+        </div>
+
+        <div class="replay-controls">
+          <button class="action-btn" onclick="prevReplayScreen()">◀ Prev Screen</button>
+          <button class="action-btn" onclick="nextReplayScreen()">Next Screen ▶</button>
+          <button id="auto-replay-btn" class="action-btn" onclick="toggleAutoReplay()">▶ Auto Play</button>
+          <button class="action-btn" onclick="resetCliMode()" style="border-color:var(--primary); color:var(--primary);">💻 Interactive CLI</button>
+        </div>
+      </div>
+
+      <!-- Terminal Window -->
+      <div class="terminal-window">
+        <div class="terminal-header">
+          <div class="terminal-dots">
+            <span class="dot dot-red"></span>
+            <span class="dot dot-yellow"></span>
+            <span class="dot dot-green"></span>
+          </div>
+          <div class="terminal-title">Console Output - Complaint Registration & Tracking System (Java 17)</div>
+          <div class="terminal-controls">
+            <button class="term-btn" onclick="clearTerminal()">Clear</button>
+          </div>
+        </div>
+
+        <div id="terminal-body" class="terminal-body"></div>
+
+        <div class="terminal-input-row">
+          <span id="term-prompt-label" style="color:#38bdf8; font-weight:700; margin-left:1.25rem;">Enter choice: </span>
+          <input type="text" id="term-input" class="term-input" autofocus placeholder="Type choice or command and press Enter...">
+        </div>
+      </div>
+    </div>
+
+    <!-- ================= TAB 5: SOURCE CODE VIEWER ================= -->
+    <div id="code-tab" class="tab-panel">
+      <div style="margin-bottom:1.25rem; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
+        <div>
+          <h3 style="font-size:1.6rem; font-weight:800; margin-bottom:0.2rem;">☕ Complete Java 17 Source Code</h3>
+          <p style="color:var(--text-muted); font-size:0.875rem;">Browse and copy the exact native Java files compiled and verified in the repository.</p>
+        </div>
+        <div style="display:flex; gap:0.5rem;">
+          <button class="action-btn" onclick="copyCurrentCode()">📋 Copy Code</button>
+          <button class="action-btn" onclick="downloadJavaFiles()">📥 Download All Files</button>
+        </div>
+      </div>
+
+      <div class="code-viewer-container">
+        <!-- Left: File Selector -->
+        <div id="code-files-list" class="code-file-list"></div>
+
+        <!-- Right: Code Display -->
+        <div class="code-display-area">
+          <div class="code-header-bar">
+            <div class="code-title-group">
+              <h3 id="code-current-title">Complaint.java</h3>
+              <p id="code-current-desc">Encapsulated entity class</p>
+            </div>
+            <button class="action-btn" onclick="copyCurrentCode()" style="font-size:0.75rem; padding:0.35rem 0.65rem;">Copy</button>
+          </div>
+          <pre class="code-content-pre"><code id="code-pre-element"></code></pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================= TAB 6: PROJECT REPORT & DOCS ================= -->
+    <div id="docs-tab" class="tab-panel">
+      <div class="card" style="max-width:900px; margin:0 auto; line-height:1.7;">
+        <h2 style="font-size:1.8rem; font-weight:800; margin-bottom:1rem; border-bottom:2px solid var(--primary); padding-bottom:0.5rem;">
+          Complaint Registration and Tracking System in Java
+        </h2>
+
+        <section style="margin-bottom:1.5rem;">
+          <h3 style="font-size:1.2rem; font-weight:700; color:var(--primary); margin-bottom:0.4rem;">1. Aim</h3>
+          <p>
+            To design and implement a Complaint Registration and Tracking System in Java using Object Oriented Programming concepts, where customers can register complaints and track their progress, and an administrator can review and update the status of complaints.
+          </p>
+        </section>
+
+        <section style="margin-bottom:1.5rem;">
+          <h3 style="font-size:1.2rem; font-weight:700; color:var(--primary); margin-bottom:0.4rem;">2. Abstract</h3>
+          <p>
+            Organizations often lose or delay customer complaints when they are handled manually. This project provides a role-based Java application in which customers register, log in, and file complaints with a category, description and priority (LOW, MEDIUM, HIGH). Every complaint receives a unique ID and a filing date. Customers can track a complaint by its ID or view all of their own complaints. The administrator can view all complaints, update their status (REGISTERED, IN_PROGRESS, RESOLVED) with remarks, and generate a summary report.
+          </p>
+          <p style="margin-top:0.5rem;">
+            The project applies classes and objects, encapsulation, inheritance, abstraction, polymorphism, enumerations, collections, and custom exception handling.
+          </p>
+        </section>
+
+        <section style="margin-bottom:1.5rem;">
+          <h3 style="font-size:1.2rem; font-weight:700; color:var(--primary); margin-bottom:0.4rem;">3. Problem Statement</h3>
+          <p>
+            Organizations receive many complaints from customers, and handling them manually leads to delays and lost records. The system provides an application in which every complaint is given a unique ID, stored with its category, priority and status, and can be tracked at any time until it is resolved.
+          </p>
+        </section>
+
+        <section style="margin-bottom:1.5rem;">
+          <h3 style="font-size:1.2rem; font-weight:700; color:var(--primary); margin-bottom:0.4rem;">4. Key Features</h3>
+          <ul style="padding-left:1.5rem;">
+            <li>Customer registration and login (role based: Customer / Admin).</li>
+            <li>Filing a complaint with category, description and priority (LOW, MEDIUM, HIGH).</li>
+            <li>Auto-generated unique Complaint ID (starts at 1001) and filing date.</li>
+            <li>Tracking a complaint by ID and viewing all complaints of a customer.</li>
+            <li>Admin can view all complaints, update status (REGISTERED, IN_PROGRESS, RESOLVED) with remarks, and see a summary report.</li>
+            <li>Error handling for invalid IDs, invalid status/priority and invalid menu input.</li>
+          </ul>
+        </section>
+
+        <section style="margin-bottom:1.5rem;">
+          <h3 style="font-size:1.2rem; font-weight:700; color:var(--primary); margin-bottom:0.4rem;">5. Conclusion</h3>
+          <p>
+            The Complaint Registration and Tracking System was implemented successfully in Java. It demonstrates classes, encapsulation, inheritance, abstraction, interfaces, polymorphism, enums, collections, and custom exception handling in a practical enterprise application.
+          </p>
+        </section>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Login / Register Modal -->
+  <div id="login-modal" class="modal-overlay">
+    <div class="modal-dialog">
+      <button class="modal-close" onclick="closeModal('login-modal')">✕</button>
+      <h3 style="font-size:1.25rem; font-weight:700; margin-bottom:1rem;">Access ComplaintHub</h3>
+
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:1.5rem;">
+        <!-- Login Form -->
+        <div>
+          <h4 style="font-size:1rem; font-weight:600; margin-bottom:0.75rem;">🔑 Log In</h4>
+          <form id="login-form">
+            <div class="form-group">
+              <label class="form-label">Username</label>
+              <input type="text" id="login-user" class="form-input" placeholder="e.g. dinesh or admin" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Password</label>
+              <input type="password" id="login-pass" class="form-input" placeholder="Password" required>
+            </div>
+            <button type="submit" class="btn-primary" style="margin-top:0.5rem;">Login</button>
+          </form>
+        </div>
+
+        <!-- Register Form -->
+        <div style="border-left:1px dashed var(--card-border); padding-left:1.5rem;">
+          <h4 style="font-size:1rem; font-weight:600; margin-bottom:0.75rem;">📝 Register Customer</h4>
+          <form id="register-form">
+            <div class="form-group">
+              <label class="form-label">New Username</label>
+              <input type="text" id="reg-user" class="form-input" placeholder="Choose name" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Create Password</label>
+              <input type="password" id="reg-pass" class="form-input" placeholder="Choose password" required>
+            </div>
+            <button type="submit" class="btn-secondary" style="width:100%; margin-top:0.5rem;">Register</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Admin Update Status Modal -->
+  <div id="update-modal" class="modal-overlay">
+    <div class="modal-dialog">
+      <button class="modal-close" onclick="closeModal('update-modal')">✕</button>
+      <h3 style="font-size:1.25rem; font-weight:700; margin-bottom:0.25rem;">Update Complaint Lifecycle Status</h3>
+      <p id="update-display-id" style="color:var(--primary); font-weight:600; font-size:0.9rem; margin-bottom:1rem;"></p>
+
+      <form id="update-status-form">
+        <input type="hidden" id="update-comp-id">
+        <div class="form-group">
+          <label class="form-label">New Status (Java Enum)</label>
+          <select id="update-comp-status" class="form-select">
+            <option value="REGISTERED">REGISTERED</option>
+            <option value="IN_PROGRESS">IN_PROGRESS</option>
+            <option value="RESOLVED">RESOLVED</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Administrative Remarks</label>
+          <textarea id="update-comp-remarks" class="form-textarea" rows="3" placeholder="e.g. Technician assigned, Replacement dispatched, Refund processed..."></textarea>
+        </div>
+
+        <button type="submit" class="btn-primary" style="margin-top:0.5rem;">Save Status Update</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Summary Report Modal -->
+  <div id="summary-modal" class="modal-overlay">
+    <div class="modal-dialog">
+      <button class="modal-close" onclick="closeModal('summary-modal')">✕</button>
+      <h3 style="font-size:1.25rem; font-weight:700; margin-bottom:1rem;">Executive Summary Report</h3>
+      <div id="summary-report-content"></div>
+      <button class="btn-secondary" onclick="closeModal('summary-modal')" style="width:100%; margin-top:1.25rem;">Close Report</button>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="footer-content">
+      <p style="font-weight:600;">Complaint Registration and Tracking System in Java</p>
+      <p style="font-size:0.8rem; margin-top:0.25rem;">Designed with Classes, Encapsulation, Inheritance, Abstraction, Polymorphism, Enums, Collections, and Custom Exceptions.</p>
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
