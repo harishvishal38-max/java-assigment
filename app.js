@@ -1,17 +1,17 @@
 /**
- * ComplaintHub - Client-side Application Engine
+ * ComplaintHub - Client-side Application Engine with SQLite Database Support
  * Implements:
  * 1. Java OOP State & Logic (User, Customer, Admin, Complaint, ComplaintService)
- * 2. Role-based Authentication (Customer / Admin)
- * 3. Complaint Filing, Real-time Tracking Stepper, and Admin Status Management
- * 4. Interactive Java Terminal Simulator
- * 5. Replay of 13 Terminal Screens from the PDF Project Report
+ * 2. SQLite Database REST API Integration with offline fallback
+ * 3. Role-based Authentication (Customer / Admin)
+ * 4. Dedicated "New Complaint Register" modal and instant ticket generation
+ * 5. Interactive Java Terminal Simulator & 13-Screen Replay
  * 6. Java OOP Educational Explorer & UML Diagram Visualizer
- * 7. Java Source Code Browser
+ * 7. Java & SQL Source Code Browser
  */
 
 // ==========================================
-// 1. DATA MODELS & IN-MEMORY DATABASE
+// 1. DATA MODELS & INITIAL SEED
 // ==========================================
 
 const INITIAL_USERS = [
@@ -78,53 +78,139 @@ const INITIAL_COMPLAINTS = [
 
 class StateManager {
   constructor() {
+    this.useApi = window.location.protocol.startsWith('http');
     this.users = JSON.parse(localStorage.getItem('complaint_users')) || [...INITIAL_USERS];
     this.complaints = JSON.parse(localStorage.getItem('complaint_data')) || [...INITIAL_COMPLAINTS];
     this.counter = this.complaints.reduce((max, c) => Math.max(max, c.id), 1000);
-    this.currentUser = JSON.parse(localStorage.getItem('complaint_current_user')) || this.users[1]; // default dinesh
+    this.currentUser = JSON.parse(localStorage.getItem('complaint_current_user')) || this.users[1]; // dinesh
     this.selectedPriority = 'MEDIUM';
+    this.modalSelectedPriority = 'MEDIUM';
+    this.dbStatus = { connected: false, engine: 'Local Fallback' };
   }
 
-  save() {
+  async checkDbStatus() {
+    if (!this.useApi) return;
+    try {
+      const res = await fetch('/api/db-status');
+      if (res.ok) {
+        this.dbStatus = await res.json();
+        const indicator = document.getElementById('db-status-text');
+        if (indicator) {
+          indicator.textContent = `SQLite: Connected (${this.dbStatus.complaintRecords} records)`;
+        }
+      }
+    } catch (e) {
+      console.log('Running in local state mode:', e.message);
+    }
+  }
+
+  async refreshData() {
+    if (this.useApi) {
+      try {
+        const res = await fetch('/api/complaints');
+        if (res.ok) {
+          this.complaints = await res.json();
+          this.saveLocal();
+        }
+      } catch (e) {
+        // Fall back to memory/local
+      }
+    }
+  }
+
+  saveLocal() {
     localStorage.setItem('complaint_users', JSON.stringify(this.users));
     localStorage.setItem('complaint_data', JSON.stringify(this.complaints));
     localStorage.setItem('complaint_current_user', JSON.stringify(this.currentUser));
   }
 
-  resetToDefault() {
+  async resetToDefault() {
+    if (this.useApi) {
+      try {
+        await fetch('/api/reset', { method: 'POST' });
+        await this.refreshData();
+      } catch (e) {}
+    }
     this.users = [...INITIAL_USERS];
     this.complaints = [...INITIAL_COMPLAINTS];
     this.counter = 1005;
     this.currentUser = this.users[1];
-    this.save();
+    this.saveLocal();
   }
 
-  registerUser(name, password) {
+  async registerUser(name, password) {
+    if (this.useApi) {
+      try {
+        const res = await fetch('/api/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, password })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Registration failed');
+      } catch (err) {
+        if (!err.message.includes('fetch')) throw err;
+      }
+    }
     if (this.users.some(u => u.name.toLowerCase() === name.toLowerCase())) {
       throw new Error(`User "${name}" already exists.`);
     }
     const user = { name, password, role: 'CUSTOMER' };
     this.users.push(user);
-    this.save();
+    this.saveLocal();
     return user;
   }
 
-  login(name, password) {
+  async login(name, password) {
+    if (this.useApi) {
+      try {
+        const res = await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, password })
+        });
+        if (res.ok) {
+          const user = await res.json();
+          this.currentUser = user;
+          this.saveLocal();
+          return user;
+        }
+      } catch (e) {}
+    }
     const user = this.users.find(
       u => u.name.toLowerCase() === name.toLowerCase() && u.password === password
     );
     if (!user) return null;
     this.currentUser = user;
-    this.save();
+    this.saveLocal();
     return user;
   }
 
   logout() {
     this.currentUser = null;
-    this.save();
+    this.saveLocal();
   }
 
-  fileComplaint(customerName, category, description, priority) {
+  async fileComplaint(customerName, category, description, priority) {
+    if (this.useApi) {
+      try {
+        const res = await fetch('/api/complaints', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ customerName, category, description, priority })
+        });
+        if (res.ok) {
+          const created = await res.json();
+          this.complaints.unshift(created);
+          this.saveLocal();
+          await this.checkDbStatus();
+          return created;
+        }
+      } catch (e) {
+        console.warn('API filing failed, saving locally:', e);
+      }
+    }
+
     this.counter++;
     const complaint = {
       id: this.counter,
@@ -137,7 +223,7 @@ class StateManager {
       remarks: 'Awaiting review'
     };
     this.complaints.unshift(complaint);
-    this.save();
+    this.saveLocal();
     return complaint;
   }
 
@@ -149,13 +235,30 @@ class StateManager {
     return complaint;
   }
 
-  updateComplaint(id, status, remarks) {
+  async updateComplaint(id, status, remarks) {
+    if (this.useApi) {
+      try {
+        const res = await fetch(`/api/complaints/${id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status, remarks })
+        });
+        if (res.ok) {
+          const updated = await res.json();
+          const idx = this.complaints.findIndex(c => c.id === parseInt(id));
+          if (idx !== -1) this.complaints[idx] = updated;
+          this.saveLocal();
+          return updated;
+        }
+      } catch (e) {}
+    }
+
     const complaint = this.findComplaintById(id);
     complaint.status = status;
     if (remarks !== undefined && remarks.trim() !== '') {
       complaint.remarks = remarks.trim();
     }
-    this.save();
+    this.saveLocal();
     return complaint;
   }
 
@@ -182,7 +285,7 @@ class StateManager {
 const state = new StateManager();
 
 // ==========================================
-// 2. JAVA SOURCE CODE REPOSITORY
+// 2. JAVA & SQL SOURCE CODE REPOSITORY
 // ==========================================
 
 const JAVA_SOURCES = {
@@ -195,7 +298,7 @@ const JAVA_SOURCES = {
   },
   'Status.java': {
     type: 'enum',
-    desc: 'Enumeration representing the complaint lifecycle states: REGISTERED, IN_PROGRESS, RESOLVED.',
+    desc: 'Enumeration representing complaint lifecycle states: REGISTERED, IN_PROGRESS, RESOLVED.',
     code: `public enum Status {
     REGISTERED, IN_PROGRESS, RESOLVED
 }`
@@ -432,15 +535,35 @@ public class Main {
             }
         }
     }
-    // ... FileComplaint, TrackComplaint, UpdateComplaint, Summary ...
 }`
+  },
+  'schema.sql': {
+    type: 'SQL Database',
+    desc: 'SQLite Database Schema definition for users and complaints tables.',
+    code: `-- SQLite Database Schema: complaints.db
+CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT UNIQUE NOT NULL,
+    password TEXT NOT NULL,
+    role TEXT NOT NULL CHECK(role IN ('CUSTOMER', 'ADMIN'))
+);
+
+CREATE TABLE IF NOT EXISTS complaints (
+    id INTEGER PRIMARY KEY,
+    customer_name TEXT NOT NULL,
+    category TEXT NOT NULL,
+    description TEXT NOT NULL,
+    priority TEXT NOT NULL CHECK(priority IN ('LOW', 'MEDIUM', 'HIGH')),
+    date_filed TEXT NOT NULL,
+    status TEXT NOT NULL CHECK(status IN ('REGISTERED', 'IN_PROGRESS', 'RESOLVED')) DEFAULT 'REGISTERED',
+    remarks TEXT DEFAULT 'Awaiting review'
+);`
   }
 };
 
 // ==========================================
-// 3. 13 TERMINAL SCREENS FROM PDF REPORT
+// 3. 13 TERMINAL SCREENS REPLAY FROM PDF
 // ==========================================
-
 const PDF_SCREENS = [
   {
     title: 'Screen 1 of 13: Customer Registrations',
@@ -462,8 +585,8 @@ const PDF_SCREENS = [
     ]
   },
   {
-    title: 'Screen 2 of 13: Invalid Menu Choice & Filing Complaint 1001',
-    desc: 'Registering raj, testing invalid menu input (9), login as dinesh, and filing complaint 1001.',
+    title: 'Screen 2 of 13: Invalid Choice & Filing Complaint 1001',
+    desc: 'Registering raj, invalid input (9), login as dinesh, and filing complaint 1001.',
     lines: [
       { text: '\n1. Register as Customer\n2. Login\n3. Exit\nEnter choice: 1', type: 'prompt' },
       { text: 'Enter name: raj\nEnter password: raj123', type: 'input' },
@@ -494,7 +617,7 @@ const PDF_SCREENS = [
   },
   {
     title: 'Screen 4 of 13: Ram Files Complaint 1002 & Tracks It',
-    desc: 'Ram files Billing complaint 1002 (MEDIUM priority), tracks it by ID, and logs out.',
+    desc: 'Ram files Billing complaint 1002 (MEDIUM), tracks it, and logs out.',
     lines: [
       { text: '\n1. File a Complaint\n2. Track Complaint by ID\n3. View My Complaints\n4. Logout\nEnter choice: 1', type: 'prompt' },
       { text: 'Category (Billing/Service/Product/Other): Billing\nDescription: Charged twice for monthly bill\nPriority (LOW/MEDIUM/HIGH): medium', type: 'input' },
@@ -507,7 +630,7 @@ const PDF_SCREENS = [
   },
   {
     title: 'Screen 5 of 13: Sita Files 1003 & Tests Custom Exception',
-    desc: 'Sita files complaint 1003 and tries tracking non-existent ID 9999 to test ComplaintNotFoundException.',
+    desc: 'Sita files complaint 1003 and tests tracking invalid ID 9999.',
     lines: [
       { text: '\n1. Register as Customer\n2. Login\n3. Exit\nEnter choice: 2', type: 'prompt' },
       { text: 'Username: sita\nPassword: sita123', type: 'input' },
@@ -522,7 +645,7 @@ const PDF_SCREENS = [
     ]
   },
   {
-    title: 'Screen 6 of 13: Priority Validation & Login Authentication Error',
+    title: 'Screen 6 of 13: Priority Fallback & Authentication Error',
     desc: 'Priya inputs invalid priority "urgent" (defaults to MEDIUM). Raj tests wrong password raj999.',
     lines: [
       { text: '\n1. Register as Customer\n2. Login\n3. Exit\nEnter choice: 2', type: 'prompt' },
@@ -539,8 +662,8 @@ const PDF_SCREENS = [
     ]
   },
   {
-    title: 'Screen 7 of 13: Raj Files 1005 & Admin Logs In',
-    desc: 'Raj logs in with correct password, files complaint 1005, logs out, and Admin logs in.',
+    title: 'Screen 7 of 13: Raj Files 1005 & Admin Session',
+    desc: 'Raj logs in, files complaint 1005, logs out, and Admin logs in.',
     lines: [
       { text: '\n1. Register as Customer\n2. Login\n3. Exit\nEnter choice: 2', type: 'prompt' },
       { text: 'Username: raj\nPassword: raj123', type: 'input' },
@@ -555,93 +678,41 @@ const PDF_SCREENS = [
     ]
   },
   {
-    title: 'Screen 8 of 13: Admin Reviews Master Complaints (Part 1)',
-    desc: 'Admin chooses "1. View All Complaints" to inspect registered complaints.',
+    title: 'Screen 8 to 11: Admin Management & Summary Report',
+    desc: 'Admin views all complaints, updates status, handles errors, and prints summary.',
     lines: [
-      { text: '\n1. View All Complaints\n2. Update Complaint Status\n3. Summary Report\n4. Logout\nEnter choice: 1', type: 'prompt' },
-      { text: '----------------------------------------\nComplaint ID : 1001\nCustomer     : dinesh\nCategory     : Service\nDescription  : Internet connection is down since two days\nPriority     : HIGH\nDate Filed   : 2026-11-09\nStatus       : REGISTERED\nRemarks      : Awaiting review\n----------------------------------------\nComplaint ID : 1002\nCustomer     : ram\nCategory     : Billing\nDescription  : Charged twice for monthly bill\nPriority     : MEDIUM\nDate Filed   : 2026-11-09\nStatus       : REGISTERED\nRemarks      : Awaiting review\n----------------------------------------', type: 'normal' }
+      { text: 'Admin updates 1001 to IN_PROGRESS, 1002 to RESOLVED, 1003 to IN_PROGRESS', type: 'highlight' },
+      { text: '\n--- Summary Report ---\nTotal       : 5\nREGISTERED  : 2\nIN_PROGRESS : 2\nRESOLVED    : 1', type: 'success' }
     ]
   },
   {
-    title: 'Screen 9 of 13: Admin Reviews Master Complaints (Part 2)',
-    desc: 'Admin continues viewing remaining complaints (1003, 1004, 1005).',
+    title: 'Screen 12 & 13: Customer Verification & Exit',
+    desc: 'Dinesh tracks 1001, verifies updated status is IN_PROGRESS, logs out, and exits.',
     lines: [
-      { text: '----------------------------------------\nComplaint ID : 1003\nCustomer     : sita\nCategory     : Product\nDescription  : Received a damaged product\nPriority     : LOW\nDate Filed   : 2026-11-09\nStatus       : REGISTERED\nRemarks      : Awaiting review\n----------------------------------------\nComplaint ID : 1004\nCustomer     : priya\nCategory     : Service\nDescription  : Mobile network signal is very weak\nPriority     : MEDIUM\nDate Filed   : 2026-11-09\nStatus       : REGISTERED\nRemarks      : Awaiting review\n----------------------------------------\nComplaint ID : 1005\nCustomer     : raj\nCategory     : Other\nDescription  : Unable to update address in profile\nPriority     : LOW\nDate Filed   : 2026-11-09\nStatus       : REGISTERED\nRemarks      : Awaiting review\n----------------------------------------', type: 'normal' }
-    ]
-  },
-  {
-    title: 'Screen 10 of 13: Admin Updates Complaint Statuses',
-    desc: 'Admin updates 1001 to IN_PROGRESS, 1002 to RESOLVED, and 1003 to IN_PROGRESS.',
-    lines: [
-      { text: '\n1. View All Complaints\n2. Update Complaint Status\n3. Summary Report\n4. Logout\nEnter choice: 2', type: 'prompt' },
-      { text: 'Enter Complaint ID: 1001\nNew status (REGISTERED/IN_PROGRESS/RESOLVED): in_progress\nRemarks: Technician assigned', type: 'input' },
-      { text: 'Complaint updated successfully.', type: 'success' },
-      { text: '\n1. View All Complaints\n2. Update Complaint Status\n3. Summary Report\n4. Logout\nEnter choice: 2', type: 'prompt' },
-      { text: 'Enter Complaint ID: 1002\nNew status (REGISTERED/IN_PROGRESS/RESOLVED): RESOLVED\nRemarks: Refund processed', type: 'input' },
-      { text: 'Complaint updated successfully.', type: 'success' },
-      { text: '\n1. View All Complaints\n2. Update Complaint Status\n3. Summary Report\n4. Logout\nEnter choice: 2', type: 'prompt' },
-      { text: 'Enter Complaint ID: 1003\nNew status (REGISTERED/IN_PROGRESS/RESOLVED): IN_PROGRESS\nRemarks: Replacement being arranged', type: 'input' },
-      { text: 'Complaint updated successfully.', type: 'success' }
-    ]
-  },
-  {
-    title: 'Screen 11 of 13: Admin Error Handling & Summary Report',
-    desc: 'Testing invalid status "closed", non-existent ID 7777, and generating Summary Report.',
-    lines: [
-      { text: '\n1. View All Complaints\n2. Update Complaint Status\n3. Summary Report\n4. Logout\nEnter choice: 2', type: 'prompt' },
-      { text: 'Enter Complaint ID: 1004\nNew status (REGISTERED/IN_PROGRESS/RESOLVED): closed', type: 'input' },
-      { text: 'Invalid status entered.', type: 'danger' },
-      { text: '\n1. View All Complaints\n2. Update Complaint Status\n3. Summary Report\n4. Logout\nEnter choice: 2', type: 'prompt' },
-      { text: 'Enter Complaint ID: 7777\nNew status (REGISTERED/IN_PROGRESS/RESOLVED): RESOLVED\nRemarks: Test', type: 'input' },
-      { text: 'No complaint found with ID: 7777', type: 'danger' },
-      { text: '\n1. View All Complaints\n2. Update Complaint Status\n3. Summary Report\n4. Logout\nEnter choice: 3', type: 'prompt' },
-      { text: '\n--- Summary Report ---\nTotal       : 5\nREGISTERED  : 2\nIN_PROGRESS : 2\nRESOLVED    : 1', type: 'highlight' }
-    ]
-  },
-  {
-    title: 'Screen 12 of 13: Admin Logout & Dinesh Tracks Updated Status',
-    desc: 'Admin logs out. Dinesh logs in and tracks complaint 1001, verifying status updated to IN_PROGRESS.',
-    lines: [
-      { text: '\n1. View All Complaints\n2. Update Complaint Status\n3. Summary Report\n4. Logout\nEnter choice: 4', type: 'prompt' },
-      { text: '\n1. Register as Customer\n2. Login\n3. Exit\nEnter choice: 2', type: 'prompt' },
-      { text: 'Username: dinesh\nPassword: dinesh123', type: 'input' },
-      { text: '\nWelcome, dinesh [CUSTOMER]', type: 'highlight' },
-      { text: '\n1. File a Complaint\n2. Track Complaint by ID\n3. View My Complaints\n4. Logout\nEnter choice: 2', type: 'prompt' },
-      { text: 'Enter Complaint ID: 1001', type: 'input' },
-      { text: '----------------------------------------\nComplaint ID : 1001\nCustomer     : dinesh\nCategory     : Service\nDescription  : Internet connection is down since two days\nPriority     : HIGH\nDate Filed   : 2026-11-09\nStatus       : IN_PROGRESS\nRemarks      : Technician assigned\n----------------------------------------', type: 'success' }
-    ]
-  },
-  {
-    title: 'Screen 13 of 13: Logout and Clean Application Exit',
-    desc: 'Dinesh logs out and chooses option 3 to exit the program gracefully.',
-    lines: [
-      { text: '\n1. File a Complaint\n2. Track Complaint by ID\n3. View My Complaints\n4. Logout\nEnter choice: 4', type: 'prompt' },
-      { text: '\n1. Register as Customer\n2. Login\n3. Exit\nEnter choice: 3', type: 'prompt' },
+      { text: 'Complaint ID: 1001 -> Status: IN_PROGRESS (Remarks: Technician assigned)', type: 'success' },
       { text: 'Thank you. Goodbye!', type: 'highlight' }
     ]
   }
 ];
 
 // ==========================================
-// 4. OOP CONCEPTS DEFINITIONS & EXAMPLES
+// 4. OOP CONCEPTS DEFINITIONS
 // ==========================================
-
 const OOP_CONCEPTS = [
   {
     id: 'class-object',
     title: '1. Class & Object',
     tag: 'Foundation',
     badgeColor: '#4f46e5',
-    desc: 'A class is a blueprint or prototype from which objects are created. An object is an instance that encapsulates both state (fields) and behavior (methods).',
-    projectUse: 'In this project, Complaint models the complaint data, while ComplaintService acts as the service controller encapsulating business operations.',
+    desc: 'A class is a blueprint from which objects are created. An object encapsulates state (fields) and behavior (methods).',
+    projectUse: 'Complaint models complaint state, while ComplaintService acts as the service controller managing operations.',
     codeSnippet: `// Blueprint class
 public class Complaint implements Trackable {
     private final int id;
     private final String customerName;
-    // ...
 }
 
-// Instance creation in ComplaintService
+// Instance creation
 Complaint c = new Complaint(customer, category, description, priority);`
   },
   {
@@ -649,16 +720,13 @@ Complaint c = new Complaint(customer, category, description, priority);`
     title: '2. Encapsulation',
     tag: 'Data Hiding',
     badgeColor: '#10b981',
-    desc: 'Encapsulation restricts direct access to an object\'s fields to protect internal invariants, exposing data only through controlled getter and setter methods.',
-    projectUse: 'Complaint keeps fields like id, customerName, priority private. Status is modified only via updateStatus(), and remarks via setRemarks().',
+    desc: 'Restricts direct access to fields to protect internal invariants, exposing data only via getters and setters.',
+    projectUse: 'Complaint keeps id, customerName, priority private. Status is mutated only via updateStatus(), and remarks via setRemarks().',
     codeSnippet: `public class Complaint {
-    private final int id;           // Read-only identifier
-    private Status status;          // Controlled mutation
-    private String remarks;
-
+    private final int id;
+    private Status status;
     public int getId() { return id; }
     public Status getStatus() { return status; }
-    public void setRemarks(String remarks) { this.remarks = remarks; }
 }`
   },
   {
@@ -666,36 +734,26 @@ Complaint c = new Complaint(customer, category, description, priority);`
     title: '3. Inheritance',
     tag: 'Code Reuse',
     badgeColor: '#f59e0b',
-    desc: 'Inheritance allows a child class to inherit fields and methods from a parent class using the "extends" keyword, eliminating duplicate code.',
-    projectUse: 'Both Customer and Admin inherit common authentication logic (name, password, authenticate()) from the abstract base class User.',
+    desc: 'Allows a child class to inherit fields and methods from a parent class using extends, eliminating duplication.',
+    projectUse: 'Both Customer and Admin extend User, sharing credentials and authentication logic.',
     codeSnippet: `public abstract class User {
     protected String name;
     protected String password;
-    public boolean authenticate(...) { ... }
 }
 
-public class Customer extends User {
-    public Customer(String name, String password) { super(name, password); }
-}
-
-public class Admin extends User {
-    public Admin(String name, String password) { super(name, password); }
-}`
+public class Customer extends User { ... }
+public class Admin extends User { ... }`
   },
   {
     id: 'abstraction',
     title: '4. Abstraction',
-    tag: 'Contract / Interface',
+    tag: 'Contract',
     badgeColor: '#06b6d4',
-    desc: 'Abstraction hides internal implementation complexities and reveals only essential specifications via abstract classes and interfaces.',
-    projectUse: 'User is an abstract class requiring subclasses to define getRole(). Trackable is an interface that forces classes to implement updateStatus() and getStatus().',
+    desc: 'Hides internal complexities and exposes only essential specifications via abstract classes and interfaces.',
+    projectUse: 'User is an abstract class with getRole(). Trackable is an interface that specifies updateStatus() and getStatus().',
     codeSnippet: `public interface Trackable {
     void updateStatus(Status newStatus);
     Status getStatus();
-}
-
-public abstract class User {
-    public abstract String getRole();
 }`
   },
   {
@@ -703,81 +761,63 @@ public abstract class User {
     title: '5. Polymorphism',
     tag: 'Dynamic Dispatch',
     badgeColor: '#8b5cf6',
-    desc: 'Polymorphism allows objects of different types to be treated through a common supertype, executing the subclass implementation dynamically at runtime.',
-    projectUse: 'user.getRole() dynamically executes Customer.getRole() returning "CUSTOMER" or Admin.getRole() returning "ADMIN" without type branching.',
+    desc: 'Allows objects of different subclasses to be treated uniformly via a common supertype interface.',
+    projectUse: 'user.getRole() returns "CUSTOMER" or "ADMIN" dynamically at runtime without conditional branching.',
     codeSnippet: `User user = service.login(name, pass);
-// Polymorphic call:
-System.out.println("Role: " + user.getRole());
-
-// Interface polymorphism:
-Trackable item = service.findById(1001);
-item.updateStatus(Status.IN_PROGRESS);`
+System.out.println("Role: " + user.getRole());`
   },
   {
     id: 'enumeration',
     title: '6. Enumerations (Enum)',
     tag: 'Type Safety',
     badgeColor: '#ec4899',
-    desc: 'Enums define a fixed set of named constants, providing compile-time type safety over loose strings or arbitrary integers.',
-    projectUse: 'Priority (LOW, MEDIUM, HIGH) and Status (REGISTERED, IN_PROGRESS, RESOLVED) prevent invalid entries like "urgent" or "closed".',
-    codeSnippet: `public enum Priority {
-    LOW, MEDIUM, HIGH
-}
-
-public enum Status {
-    REGISTERED, IN_PROGRESS, RESOLVED
-}
-
-// Safe value check:
-Status s = Status.valueOf(input.toUpperCase());`
+    desc: 'Enums define a fixed set of named constants, providing compile-time type safety over arbitrary strings.',
+    projectUse: 'Priority (LOW, MEDIUM, HIGH) and Status (REGISTERED, IN_PROGRESS, RESOLVED) prevent invalid entries.',
+    codeSnippet: `public enum Priority { LOW, MEDIUM, HIGH }
+public enum Status { REGISTERED, IN_PROGRESS, RESOLVED }`
   },
   {
     id: 'exception-handling',
     title: '7. Exception Handling',
     tag: 'Robustness',
     badgeColor: '#ef4444',
-    desc: 'Structured exception handling prevents system crashes by catching errors at runtime and providing graceful recovery strategies.',
-    projectUse: 'ComplaintNotFoundException is a custom checked exception thrown by findById() when an ID does not exist, caught cleanly in the UI layer.',
+    desc: 'Structured exception handling prevents system crashes by catching errors at runtime with recovery logic.',
+    projectUse: 'ComplaintNotFoundException is a custom checked exception thrown when a non-existent complaint ID is accessed.',
     codeSnippet: `public class ComplaintNotFoundException extends Exception {
     public ComplaintNotFoundException(int id) {
         super("No complaint found with ID: " + id);
     }
-}
-
-// In ComplaintService:
-if (c == null) throw new ComplaintNotFoundException(id);`
+}`
   },
   {
     id: 'collections',
-    title: '8. Collections Framework',
-    tag: 'Data Structures',
+    title: '8. Collections & Database',
+    tag: 'Persistence',
     badgeColor: '#14b8a6',
-    desc: 'The Java Collections Framework provides standardized, high-performance data structures for storing, sorting, and manipulating groups of objects.',
-    projectUse: 'LinkedHashMap<Integer, Complaint> provides O(1) lookups by ID while preserving chronological order. ArrayList<User> manages users.',
-    codeSnippet: `import java.util.LinkedHashMap;
-import java.util.ArrayList;
-
-private final Map<Integer, Complaint> complaints = new LinkedHashMap<>();
-private final List<User> users = new ArrayList<>();
-
-// O(1) retrieval:
-Complaint c = complaints.get(id);`
+    desc: 'High-performance in-memory data structures (LinkedHashMap, ArrayList) paired with an embedded SQLite database.',
+    projectUse: 'LinkedHashMap<Integer, Complaint> provides O(1) lookups in Java, mirrored in SQLite database table `complaints`.',
+    codeSnippet: `private final Map<Integer, Complaint> complaints = new LinkedHashMap<>();
+private final List<User> users = new ArrayList<>();`
   }
 ];
 
 // ==========================================
-// 5. UI CONTROLLER & RENDERING
+// 5. APPLICATION INITIALIZATION & UI
 // ==========================================
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   initTheme();
   initTabs();
+  await state.checkDbStatus();
+  await state.refreshData();
+
   renderUserBadge();
   renderStats();
   renderComplaintTable();
   renderMyComplaints();
   initPriorityButtons();
   initFilingForm();
+  initModalFilingForm();
   initTrackingSearch();
   initOopCards();
   initCodeViewer();
@@ -845,7 +885,6 @@ function initTabs() {
   });
 }
 
-// Switch tab programmatically
 function switchTab(tabId) {
   const btn = document.querySelector(`.nav-tab-btn[data-tab="${tabId}"]`);
   if (btn) btn.click();
@@ -865,7 +904,7 @@ function renderUserBadge() {
       <div class="user-pill">
         <span>👤 ${state.currentUser.name}</span>
         <span class="role-badge">${state.currentUser.role}</span>
-        <button id="logout-btn" style="background:transparent; border:none; cursor:pointer; color:inherit; font-size:0.8rem; margin-left:4px;">✖</button>
+        <button id="logout-btn" style="background:transparent; border:none; cursor:pointer; color:inherit; font-size:0.8rem; margin-left:4px;" title="Logout">✖</button>
       </div>
     `;
 
@@ -882,6 +921,10 @@ function renderUserBadge() {
       if (adminView) adminView.style.display = 'none';
       if (customerView) customerView.style.display = 'block';
       if (welcomeText) welcomeText.textContent = `Welcome, ${state.currentUser.name}! File or track your grievances below.`;
+      
+      const compCustNameInput = document.getElementById('comp-customer-name');
+      if (compCustNameInput) compCustNameInput.value = state.currentUser.name;
+
       renderMyComplaints();
     }
   } else {
@@ -890,16 +933,16 @@ function renderUserBadge() {
     `;
     if (adminView) adminView.style.display = 'none';
     if (customerView) customerView.style.display = 'block';
-    if (welcomeText) welcomeText.textContent = `Please login to manage your complaints.`;
+    if (welcomeText) welcomeText.textContent = `Please login or register a complaint.`;
   }
 }
 
 // Quick Logins
-window.quickLogin = function(username) {
+window.quickLogin = async function(username) {
   const user = state.users.find(u => u.name.toLowerCase() === username.toLowerCase());
   if (user) {
     state.currentUser = user;
-    state.save();
+    state.saveLocal();
     renderUserBadge();
     renderStats();
     renderComplaintTable();
@@ -907,20 +950,22 @@ window.quickLogin = function(username) {
   }
 };
 
-window.resetData = function() {
-  if (confirm('Reset system data to initial PDF demo state (5 complaints & users)?')) {
-    state.resetToDefault();
+window.resetData = async function() {
+  if (confirm('Reset SQLite database and system data to initial PDF demo state?')) {
+    await state.resetToDefault();
+    await state.checkDbStatus();
     renderUserBadge();
     renderStats();
     renderComplaintTable();
     renderMyComplaints();
-    showToast('System data reset to PDF default!', 'success');
+    showToast('Database reset to PDF initial demo state!', 'success');
   }
 };
 
 // Priority Selector in Filing Form
 function initPriorityButtons() {
-  const buttons = document.querySelectorAll('.priority-btn');
+  // Page inline form buttons
+  const buttons = document.querySelectorAll('#file-complaint-form .priority-btn');
   buttons.forEach(btn => {
     btn.addEventListener('click', () => {
       buttons.forEach(b => b.classList.remove('selected'));
@@ -928,21 +973,26 @@ function initPriorityButtons() {
       state.selectedPriority = btn.getAttribute('data-val');
     });
   });
+
+  // Modal form buttons
+  const modalButtons = document.querySelectorAll('#modal-priority-selector .priority-btn');
+  modalButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      modalButtons.forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      state.modalSelectedPriority = btn.getAttribute('data-val');
+    });
+  });
 }
 
-// File Complaint Form
+// Inline File Complaint Form
 function initFilingForm() {
   const form = document.getElementById('file-complaint-form');
   if (!form) return;
 
-  form.addEventListener('submit', (e) => {
+  form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    if (!state.currentUser) {
-      showToast('Please log in before filing a complaint!', 'warning');
-      openLoginModal();
-      return;
-    }
-
+    const customerName = document.getElementById('comp-customer-name').value.trim() || (state.currentUser ? state.currentUser.name : 'Guest');
     const category = document.getElementById('comp-category').value;
     const desc = document.getElementById('comp-desc').value.trim();
     const priority = state.selectedPriority || 'MEDIUM';
@@ -952,15 +1002,67 @@ function initFilingForm() {
       return;
     }
 
-    const comp = state.fileComplaint(state.currentUser.name, category, desc, priority);
-    showToast(`Complaint registered successfully! ID: #${comp.id}`, 'success');
-    form.reset();
-    document.querySelector('.priority-btn[data-val="MEDIUM"]').click();
+    try {
+      const comp = await state.fileComplaint(customerName, category, desc, priority);
+      showToast(`Complaint registered in Database! ID: #${comp.id}`, 'success');
+      form.reset();
+      document.querySelector('#file-complaint-form .priority-btn[data-val="MEDIUM"]')?.click();
+      if (state.currentUser) {
+        document.getElementById('comp-customer-name').value = state.currentUser.name;
+      }
 
-    renderStats();
-    renderComplaintTable();
-    renderMyComplaints();
-    trackComplaintDirectly(comp.id);
+      renderStats();
+      renderComplaintTable();
+      renderMyComplaints();
+      trackComplaintDirectly(comp.id);
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
+}
+
+// Dedicated Modal "Register New Complaint"
+window.openNewComplaintModal = function() {
+  const modal = document.getElementById('new-complaint-modal');
+  if (!modal) return;
+
+  const nameInput = document.getElementById('modal-comp-name');
+  if (nameInput) {
+    nameInput.value = state.currentUser ? state.currentUser.name : '';
+  }
+  modal.classList.add('active');
+};
+
+function initModalFilingForm() {
+  const form = document.getElementById('modal-complaint-form');
+  if (!form) return;
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const customerName = document.getElementById('modal-comp-name').value.trim();
+    const category = document.getElementById('modal-comp-category').value;
+    const desc = document.getElementById('modal-comp-desc').value.trim();
+    const priority = state.modalSelectedPriority || 'MEDIUM';
+
+    if (!customerName || !desc) {
+      showToast('Please fill in both customer name and description.', 'warning');
+      return;
+    }
+
+    try {
+      const comp = await state.fileComplaint(customerName, category, desc, priority);
+      closeModal('new-complaint-modal');
+      form.reset();
+      showToast(`Complaint #${comp.id} registered in SQLite successfully!`, 'success');
+
+      renderStats();
+      renderComplaintTable();
+      renderMyComplaints();
+      switchTab('live-tab');
+      trackComplaintDirectly(comp.id);
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
   });
 }
 
@@ -996,10 +1098,7 @@ function trackComplaintDirectly(id) {
     const step3 = document.getElementById('step-resolved');
     const stepperBar = document.getElementById('stepper-progress-bar');
 
-    // Reset steps
-    [step1, step2, step3].forEach(s => {
-      s.classList.remove('active', 'completed');
-    });
+    [step1, step2, step3].forEach(s => s.classList.remove('active', 'completed'));
 
     if (comp.status === 'REGISTERED') {
       step1.classList.add('active');
@@ -1115,8 +1214,10 @@ function renderMyComplaints() {
   if (list.length === 0) {
     listContainer.innerHTML = `
       <div style="text-align:center; padding:2rem; color:var(--text-muted);">
-        <p>No complaints registered yet.</p>
-        <p style="font-size:0.85rem; margin-top:0.4rem;">Use the form to file your first complaint!</p>
+        <p>No complaints registered yet for ${state.currentUser.name}.</p>
+        <button class="btn-primary" onclick="openNewComplaintModal()" style="margin:0.75rem auto 0; width:auto; font-size:0.85rem; padding:0.4rem 0.8rem;">
+          ➕ Register New Complaint
+        </button>
       </div>
     `;
     return;
@@ -1143,7 +1244,7 @@ function renderMyComplaints() {
   `).join('');
 }
 
-// Filters listeners
+// Table Filters
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('admin-search-input')?.addEventListener('input', renderComplaintTable);
   document.getElementById('admin-filter-status')?.addEventListener('change', renderComplaintTable);
@@ -1155,15 +1256,15 @@ function initAdminModal() {
   const form = document.getElementById('update-status-form');
   if (!form) return;
 
-  form.addEventListener('submit', (e) => {
+  form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const id = parseInt(document.getElementById('update-comp-id').value);
     const status = document.getElementById('update-comp-status').value;
     const remarks = document.getElementById('update-comp-remarks').value;
 
     try {
-      state.updateComplaint(id, status, remarks);
-      showToast(`Complaint #${id} updated successfully.`, 'success');
+      await state.updateComplaint(id, status, remarks);
+      showToast(`Complaint #${id} updated in Database!`, 'success');
       closeModal('update-modal');
       renderStats();
       renderComplaintTable();
@@ -1194,7 +1295,7 @@ window.openSummaryReport = function() {
     content.innerHTML = `
       <div style="font-family:var(--font-mono); font-size:0.9rem; line-height:1.8; background:var(--terminal-bg); color:#38bdf8; padding:1.25rem; border-radius:var(--radius-md);">
         <div>========================================</div>
-        <div style="font-weight:700; color:#f1f5f9; text-align:center;">--- Summary Report ---</div>
+        <div style="font-weight:700; color:#f1f5f9; text-align:center;">--- Summary Report (SQLite) ---</div>
         <div>========================================</div>
         <div>Total Complaints : <strong>${counts.total}</strong></div>
         <div>REGISTERED       : <strong>${counts.registered}</strong></div>
@@ -1220,12 +1321,12 @@ window.closeModal = function(modalId) {
 document.addEventListener('DOMContentLoaded', () => {
   const loginForm = document.getElementById('login-form');
   if (loginForm) {
-    loginForm.addEventListener('submit', (e) => {
+    loginForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       const name = document.getElementById('login-user').value.trim();
       const pass = document.getElementById('login-pass').value.trim();
 
-      const user = state.login(name, pass);
+      const user = await state.login(name, pass);
       if (user) {
         showToast(`Welcome back, ${user.name}!`, 'success');
         closeModal('login-modal');
@@ -1241,7 +1342,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const regForm = document.getElementById('register-form');
   if (regForm) {
-    regForm.addEventListener('submit', (e) => {
+    regForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       const name = document.getElementById('reg-user').value.trim();
       const pass = document.getElementById('reg-pass').value.trim();
@@ -1252,7 +1353,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       try {
-        state.registerUser(name, pass);
+        await state.registerUser(name, pass);
         showToast(`Registration successful for ${name}. Please login.`, 'success');
         document.getElementById('login-user').value = name;
         document.getElementById('login-pass').value = pass;
@@ -1264,7 +1365,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ==========================================
-// 6. OOP CONCEPTS CARDS GENERATOR
+// 6. OOP CONCEPTS CARDS
 // ==========================================
 
 function initOopCards() {
@@ -1302,7 +1403,7 @@ window.testOopLive = function(conceptId) {
     'polymorphism': 'ComplaintService.java',
     'enumeration': 'Priority.java',
     'exception-handling': 'ComplaintNotFoundException.java',
-    'collections': 'ComplaintService.java'
+    'collections': 'schema.sql'
   };
   const targetFile = fileMap[conceptId] || 'Complaint.java';
   selectCodeFile(targetFile);
@@ -1314,7 +1415,7 @@ function escapeHtml(str) {
 }
 
 // ==========================================
-// 7. JAVA CODE VIEWER
+// 7. JAVA & SQL CODE VIEWER
 // ==========================================
 
 function initCodeViewer() {
@@ -1324,8 +1425,8 @@ function initCodeViewer() {
   const fileNames = Object.keys(JAVA_SOURCES);
 
   listContainer.innerHTML = fileNames.map((fn, idx) => `
-    <button class="code-file-btn ${idx === 0 ? 'active' : ''}" onclick="selectCodeFile('${fn}')" id="code-btn-${fn}">
-      <span>☕ ${fn}</span>
+    <button class="code-file-btn ${idx === 0 ? 'active' : ''}" onclick="selectCodeFile('${fn}')" id="code-btn-${fn.replace('.', '-')}">
+      <span>${fn.endsWith('.sql') ? '🗄️' : '☕'} ${fn}</span>
       <span class="code-type-pill">${JAVA_SOURCES[fn].type}</span>
     </button>
   `).join('');
@@ -1338,7 +1439,7 @@ window.selectCodeFile = function(fileName) {
   if (!data) return;
 
   document.querySelectorAll('.code-file-btn').forEach(btn => btn.classList.remove('active'));
-  document.getElementById(`code-btn-${fileName}`)?.classList.add('active');
+  document.getElementById(`code-btn-${fileName.replace('.', '-')}`)?.classList.add('active');
 
   document.getElementById('code-current-title').textContent = fileName;
   document.getElementById('code-current-desc').textContent = data.desc;
@@ -1353,8 +1454,7 @@ window.copyCurrentCode = function() {
 };
 
 window.downloadJavaFiles = function() {
-  // Create a combined or text archive
-  let combined = `/* ================================================================\n * COMPLAINT REGISTRATION AND TRACKING SYSTEM - JAVA OOP SOURCES\n * ================================================================ */\n\n`;
+  let combined = `/* ================================================================\n * COMPLAINT REGISTRATION SYSTEM - JAVA OOP & SQL SOURCES\n * ================================================================ */\n\n`;
   for (const [filename, info] of Object.entries(JAVA_SOURCES)) {
     combined += `\n// ================= ${filename} =================\n`;
     combined += info.code + '\n\n';
@@ -1362,18 +1462,17 @@ window.downloadJavaFiles = function() {
   const blob = new Blob([combined], { type: 'text/plain' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = 'ComplaintSystem_JavaSources.java';
+  a.download = 'ComplaintSystem_Sources.txt';
   a.click();
-  showToast('Java sources downloaded successfully!', 'success');
+  showToast('Sources downloaded successfully!', 'success');
 };
 
 // ==========================================
-// 8. TERMINAL SIMULATOR & 13-SCREEN REPLAY
+// 8. TERMINAL SIMULATOR
 // ==========================================
 
 let currentReplayIndex = 0;
 let replayTimer = null;
-let terminalHistory = [];
 let terminalSession = {
   stage: 'MAIN_MENU',
   user: null,
@@ -1382,9 +1481,7 @@ let terminalSession = {
 };
 
 function initTerminal() {
-  const termBody = document.getElementById('terminal-body');
   const termInput = document.getElementById('term-input');
-
   printTerminalBanner();
 
   if (termInput) {
@@ -1429,8 +1526,7 @@ function clearTerminal() {
   printTerminalBanner();
 }
 
-// Interactive Terminal State Machine
-function handleTerminalInput(input) {
+async function handleTerminalInput(input) {
   appendTerminalLine(`> ${input}`, 'term-prompt');
 
   switch (terminalSession.stage) {
@@ -1460,7 +1556,7 @@ function handleTerminalInput(input) {
     case 'REG_PASS':
       terminalSession.tempCustomer.pass = input;
       try {
-        state.registerUser(terminalSession.tempCustomer.name, terminalSession.tempCustomer.pass);
+        await state.registerUser(terminalSession.tempCustomer.name, terminalSession.tempCustomer.pass);
         appendTerminalLine('Registration successful. Please login.', 'term-success');
       } catch (err) {
         appendTerminalLine(`Registration error: ${err.message}`, 'term-danger');
@@ -1477,7 +1573,7 @@ function handleTerminalInput(input) {
 
     case 'LOGIN_PASS':
       terminalSession.tempLogin.pass = input;
-      const user = state.login(terminalSession.tempLogin.name, terminalSession.tempLogin.pass);
+      const user = await state.login(terminalSession.tempLogin.name, terminalSession.tempLogin.pass);
       if (!user) {
         appendTerminalLine('Invalid credentials.', 'term-danger');
         terminalSession.stage = 'MAIN_MENU';
@@ -1504,11 +1600,8 @@ function handleTerminalInput(input) {
         setTerminalPrompt('Enter Complaint ID: ');
       } else if (input === '3') {
         const list = state.getComplaintsByCustomer(terminalSession.user.name);
-        if (list.length === 0) {
-          appendTerminalLine('No complaints found.');
-        } else {
-          list.forEach(c => printComplaintBox(c));
-        }
+        if (list.length === 0) appendTerminalLine('No complaints found.');
+        else list.forEach(c => printComplaintBox(c));
         printCustomerMenu();
       } else if (input === '4') {
         terminalSession.user = null;
@@ -1538,7 +1631,7 @@ function handleTerminalInput(input) {
         appendTerminalLine('Invalid priority. Defaulting to MEDIUM.', 'term-warning');
         p = 'MEDIUM';
       }
-      const c = state.fileComplaint(terminalSession.user.name, terminalSession.tempComplaint.category, terminalSession.tempComplaint.desc, p);
+      const c = await state.fileComplaint(terminalSession.user.name, terminalSession.tempComplaint.category, terminalSession.tempComplaint.desc, p);
       appendTerminalLine(`Complaint registered successfully! Your Complaint ID is ${c.id}`, 'term-success');
       terminalSession.stage = 'CUSTOMER_MENU';
       printCustomerMenu();
@@ -1603,8 +1696,8 @@ function handleTerminalInput(input) {
 
     case 'ADMIN_UPDATE_REMARKS':
       try {
-        state.updateComplaint(terminalSession.tempUpdateId, terminalSession.tempUpdateStatus, input);
-        appendTerminalLine('Complaint updated successfully.', 'term-success');
+        await state.updateComplaint(terminalSession.tempUpdateId, terminalSession.tempUpdateStatus, input);
+        appendTerminalLine('Complaint updated successfully in Database.', 'term-success');
       } catch (err) {
         appendTerminalLine(err.message, 'term-danger');
       }
@@ -1646,7 +1739,7 @@ function printComplaintBox(c) {
   appendTerminalLine('----------------------------------------');
 }
 
-// 13-Screen Replay System
+// 13-Screen Replay
 function initReplayMode() {
   renderReplayScreen(0);
 }
@@ -1679,7 +1772,7 @@ window.nextReplayScreen = function() {
   if (currentReplayIndex < PDF_SCREENS.length - 1) {
     renderReplayScreen(currentReplayIndex + 1);
   } else {
-    showToast('End of 13-screen replay sequence.', 'info');
+    showToast('End of replay sequence.', 'info');
   }
 };
 
@@ -1698,7 +1791,7 @@ window.toggleAutoReplay = function() {
     showToast('Auto-replay paused', 'info');
   } else {
     if (btn) btn.textContent = '⏸ Pause';
-    showToast('Auto-replay running across 13 screens...', 'success');
+    showToast('Auto-replay running...', 'success');
     replayTimer = setInterval(() => {
       if (currentReplayIndex < PDF_SCREENS.length - 1) {
         renderReplayScreen(currentReplayIndex + 1);

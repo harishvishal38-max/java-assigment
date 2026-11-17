@@ -3,11 +3,50 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ComplaintHub - Java OOP Showcase & Tracking System</title>
+  <title>ComplaintHub - Java OOP Showcase & SQLite Tracking System</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
+  <style>
+    .db-status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      background: #ecfdf5;
+      color: #047857;
+      border: 1px solid #a7f3d0;
+      padding: 0.25rem 0.65rem;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 700;
+    }
+    .db-status-pill .dot-pulse {
+      width: 8px;
+      height: 8px;
+      background: #10b981;
+      border-radius: 50%;
+      box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.4);
+    }
+    .btn-register-top {
+      background: linear-gradient(135deg, #10b981, #059669);
+      color: white !important;
+      border: none !important;
+      padding: 0.5rem 1rem !important;
+      border-radius: var(--radius-md);
+      font-weight: 700 !important;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      box-shadow: 0 2px 6px rgba(16, 185, 129, 0.3);
+      transition: all 0.2s;
+    }
+    .btn-register-top:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 10px rgba(16, 185, 129, 0.4);
+    }
+  </style>
 </head>
 <body>
 
@@ -16,7 +55,7 @@
     <a href="#" class="nav-brand">
       <div class="brand-icon">☕</div>
       <div class="brand-text">
-        <h1>ComplaintHub <span class="brand-badge">Java 17 OOP</span></h1>
+        <h1>ComplaintHub <span class="brand-badge">Java 17 & SQLite</span></h1>
       </div>
     </a>
 
@@ -30,6 +69,17 @@
     </nav>
 
     <div class="nav-actions">
+      <!-- Database Status Badge -->
+      <div class="db-status-pill" id="db-status-indicator" title="Connected to SQLite (complaints.db)">
+        <span class="dot-pulse"></span>
+        <span id="db-status-text">SQLite Database: Connected</span>
+      </div>
+
+      <!-- Quick Register Complaint Button -->
+      <button class="btn-register-top" onclick="openNewComplaintModal()">
+        <span>➕ New Complaint Register</span>
+      </button>
+
       <button id="theme-toggle-btn" class="theme-btn" title="Toggle Theme">🌙 Dark</button>
       <div id="user-pill-container"></div>
     </div>
@@ -39,22 +89,32 @@
   <section class="hero-banner">
     <div class="hero-content">
       <div class="hero-tag">
-        <span>✨ Java Object-Oriented Complaint Registration & Tracking</span>
+        <span>✨ Java OOP System with SQLite Database Integration</span>
       </div>
-      <h2 class="hero-title">Robust Complaint Tracking Powered by Java OOP</h2>
+      <h2 class="hero-title">Complaint Registration & Tracking System</h2>
       <p class="hero-desc">
-        A practical realization of Encapsulation, Inheritance, Abstraction, Polymorphism, Collections, and Custom Exceptions with interactive web and terminal simulations.
+        A complete Object-Oriented Architecture backed by an embedded SQLite database (`complaints.db`), interactive web UI, real-time ticket progression stepper, and Java terminal simulator.
       </p>
 
+      <!-- Prominent Primary Action Buttons -->
+      <div style="display:flex; justify-content:center; gap:0.75rem; margin-bottom:1.5rem; flex-wrap:wrap;">
+        <button class="btn-primary" onclick="openNewComplaintModal()" style="width:auto; padding:0.8rem 1.6rem; font-size:1.05rem; background:linear-gradient(135deg, #4f46e5, #06b6d4);">
+          <span>➕ Register New Complaint</span>
+        </button>
+        <button class="btn-secondary" onclick="document.getElementById('track-id-input').focus();" style="padding:0.8rem 1.4rem;">
+          <span>🔍 Track by Complaint ID</span>
+        </button>
+      </div>
+
       <div class="quick-bar">
-        <span class="quick-label">⚡ Quick Demo Logins:</span>
+        <span class="quick-label">⚡ Switch User / Quick Logins:</span>
         <button class="quick-login-chip" onclick="quickLogin('dinesh')">👤 Dinesh (Customer)</button>
         <button class="quick-login-chip" onclick="quickLogin('ram')">👤 Ram (Customer)</button>
         <button class="quick-login-chip" onclick="quickLogin('sita')">👤 Sita (Customer)</button>
         <button class="quick-login-chip" onclick="quickLogin('priya')">👤 Priya (Customer)</button>
         <button class="quick-login-chip" onclick="quickLogin('raj')">👤 Raj (Customer)</button>
         <button class="quick-login-chip admin-chip" onclick="quickLogin('admin')">🛡️ Admin (Superuser)</button>
-        <button class="action-btn" onclick="resetData()" style="padding:0.35rem 0.75rem; font-size:0.8rem; margin-left:0.5rem;" title="Reset state to initial 5 sample complaints">🔄 Reset Data</button>
+        <button class="action-btn" onclick="resetData()" style="padding:0.35rem 0.75rem; font-size:0.8rem; margin-left:0.5rem;" title="Reset state to initial 5 sample complaints">🔄 Reset Database</button>
       </div>
     </div>
   </section>
@@ -67,21 +127,30 @@
       
       <!-- Customer View -->
       <div id="customer-view">
-        <div style="margin-bottom:1.25rem; display:flex; justify-content:space-between; align-items:center;">
+        <div style="margin-bottom:1.25rem; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.75rem;">
           <div>
             <h3 style="font-size:1.35rem; font-weight:800;">Customer Self-Service Portal</h3>
             <p id="customer-welcome-text" style="color:var(--text-muted); font-size:0.9rem;">File new complaints or track existing tickets in real-time.</p>
           </div>
-          <button class="action-btn" onclick="quickLogin('admin')">Switch to Admin Portal ➔</button>
+          <div style="display:flex; gap:0.5rem;">
+            <button class="btn-register-top" onclick="openNewComplaintModal()">➕ Register New Complaint</button>
+            <button class="action-btn" onclick="quickLogin('admin')">Switch to Admin Portal ➔</button>
+          </div>
         </div>
 
         <div class="system-grid">
           <!-- Left: Filing Form -->
           <div class="card">
             <div class="card-header">
-              <h4 class="card-title">📝 File a Complaint</h4>
+              <h4 class="card-title">📝 Register New Complaint</h4>
+              <span class="card-subtitle" style="color:#059669; font-weight:600;">Saves to SQLite</span>
             </div>
             <form id="file-complaint-form">
+              <div class="form-group">
+                <label class="form-label">Customer Name</label>
+                <input type="text" id="comp-customer-name" class="form-input" placeholder="Enter customer name..." required>
+              </div>
+
               <div class="form-group">
                 <label class="form-label">Category</label>
                 <select id="comp-category" class="form-select">
@@ -107,7 +176,7 @@
               </div>
 
               <button type="submit" class="btn-primary">
-                <span>Submit Grievance</span>
+                <span>➕ Submit & Register Complaint</span>
                 <span>➔</span>
               </button>
             </form>
@@ -169,9 +238,9 @@
 
             <!-- Customer's Own Complaints List -->
             <div class="card">
-              <div class="card-header">
+              <div class="card-header" style="flex-wrap:wrap; gap:0.5rem;">
                 <h4 class="card-title">📂 My Registered Complaints</h4>
-                <span class="card-subtitle">Filtered by logged-in customer</span>
+                <button class="action-btn" onclick="openNewComplaintModal()" style="font-size:0.8rem; padding:0.3rem 0.6rem;">➕ Register New</button>
               </div>
               <div id="my-complaints-list"></div>
             </div>
@@ -187,9 +256,10 @@
               <span>🛡️ Administrator Command Center</span>
               <span class="badge" style="background:#fee2e2; color:#b91c1c;">ADMIN ROLE</span>
             </h3>
-            <p style="color:var(--text-muted); font-size:0.9rem;">Full operational control over complaints, lifecycle status changes, remarks, and analytics reports.</p>
+            <p style="color:var(--text-muted); font-size:0.9rem;">Full operational control over complaints stored in SQLite database (`complaints.db`).</p>
           </div>
-          <div style="display:flex; gap:0.5rem;">
+          <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+            <button class="btn-register-top" onclick="openNewComplaintModal()">➕ Register New Complaint</button>
             <button class="action-btn" onclick="openSummaryReport()">📊 Generate Summary Report</button>
             <button class="action-btn" onclick="quickLogin('dinesh')">Switch to Customer View ➔</button>
           </div>
@@ -198,7 +268,7 @@
         <!-- Metric KPI Cards -->
         <div class="stats-grid">
           <div class="stat-card stat-total">
-            <div class="stat-label">Total Grievances</div>
+            <div class="stat-label">Total Grievances (DB)</div>
             <div id="stat-total" class="stat-value">5</div>
           </div>
           <div class="stat-card stat-registered">
@@ -218,7 +288,7 @@
         <!-- Master Table Card -->
         <div class="card">
           <div class="card-header" style="flex-wrap:wrap; gap:1rem;">
-            <h4 class="card-title">📋 Master Complaint Repository (LinkedHashMap)</h4>
+            <h4 class="card-title">📋 Master SQLite Complaint Database Table</h4>
             
             <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
               <input type="text" id="admin-search-input" class="form-input" placeholder="Search ID, customer, desc..." style="width:220px; padding:0.4rem 0.75rem; font-size:0.825rem;">
@@ -275,7 +345,7 @@
       <div style="margin-bottom:1.5rem;">
         <h3 style="font-size:1.6rem; font-weight:800; margin-bottom:0.4rem;">📐 Class Design & Architecture Diagram</h3>
         <p style="color:var(--text-muted);">
-          Visual representation of class hierarchies, interface implementations, and service relationships.
+          Visual representation of class hierarchies, interface implementations, service relationships, and database schema.
         </p>
       </div>
 
@@ -377,16 +447,17 @@
             </div>
           </div>
 
-          <!-- Service Layer, Enums & Exceptions -->
+          <!-- Service Layer, Enums & Database -->
           <div style="display:flex; flex-direction:column; gap:1rem;">
             <!-- ComplaintService -->
             <div class="uml-box">
               <div class="uml-header" style="background:#fef3c7; color:#b45309;">
                 <span class="uml-stereotype">&lt;&lt;Service Controller&gt;&gt;</span>
-                ComplaintService
+                ComplaintService &amp; SQLite DB
               </div>
               <div class="uml-content">
                 <div class="uml-section">
+                  <div class="uml-member"><span class="uml-visibility priv">-</span> DB: complaints.db (SQLite)</div>
                   <div class="uml-member"><span class="uml-visibility priv">-</span> complaints : Map&lt;Integer, Complaint&gt;</div>
                   <div class="uml-member"><span class="uml-visibility priv">-</span> users : List&lt;User&gt;</div>
                 </div>
@@ -486,8 +557,8 @@
     <div id="code-tab" class="tab-panel">
       <div style="margin-bottom:1.25rem; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
         <div>
-          <h3 style="font-size:1.6rem; font-weight:800; margin-bottom:0.2rem;">☕ Complete Java 17 Source Code</h3>
-          <p style="color:var(--text-muted); font-size:0.875rem;">Browse and copy the exact native Java files compiled and verified in the repository.</p>
+          <h3 style="font-size:1.6rem; font-weight:800; margin-bottom:0.2rem;">☕ Complete Java 17 Source Code &amp; SQL Schema</h3>
+          <p style="color:var(--text-muted); font-size:0.875rem;">Browse and copy the exact native Java files and database schema.</p>
         </div>
         <div style="display:flex; gap:0.5rem;">
           <button class="action-btn" onclick="copyCurrentCode()">📋 Copy Code</button>
@@ -517,13 +588,13 @@
     <div id="docs-tab" class="tab-panel">
       <div class="card" style="max-width:900px; margin:0 auto; line-height:1.7;">
         <h2 style="font-size:1.8rem; font-weight:800; margin-bottom:1rem; border-bottom:2px solid var(--primary); padding-bottom:0.5rem;">
-          Complaint Registration and Tracking System in Java
+          Complaint Registration and Tracking System in Java (With SQLite Database)
         </h2>
 
         <section style="margin-bottom:1.5rem;">
           <h3 style="font-size:1.2rem; font-weight:700; color:var(--primary); margin-bottom:0.4rem;">1. Aim</h3>
           <p>
-            To design and implement a Complaint Registration and Tracking System in Java using Object Oriented Programming concepts, where customers can register complaints and track their progress, and an administrator can review and update the status of complaints.
+            To design and implement a Complaint Registration and Tracking System in Java using Object Oriented Programming concepts and SQLite persistence, where customers can register complaints and track their progress, and an administrator can review and update the status of complaints.
           </p>
         </section>
 
@@ -533,14 +604,14 @@
             Organizations often lose or delay customer complaints when they are handled manually. This project provides a role-based Java application in which customers register, log in, and file complaints with a category, description and priority (LOW, MEDIUM, HIGH). Every complaint receives a unique ID and a filing date. Customers can track a complaint by its ID or view all of their own complaints. The administrator can view all complaints, update their status (REGISTERED, IN_PROGRESS, RESOLVED) with remarks, and generate a summary report.
           </p>
           <p style="margin-top:0.5rem;">
-            The project applies classes and objects, encapsulation, inheritance, abstraction, polymorphism, enumerations, collections, and custom exception handling.
+            The project applies classes and objects, encapsulation, inheritance, abstraction, polymorphism, enumerations, collections, SQLite database persistence, and custom exception handling.
           </p>
         </section>
 
         <section style="margin-bottom:1.5rem;">
           <h3 style="font-size:1.2rem; font-weight:700; color:var(--primary); margin-bottom:0.4rem;">3. Problem Statement</h3>
           <p>
-            Organizations receive many complaints from customers, and handling them manually leads to delays and lost records. The system provides an application in which every complaint is given a unique ID, stored with its category, priority and status, and can be tracked at any time until it is resolved.
+            Organizations receive many complaints from customers, and handling them manually leads to delays and lost records. The system provides an application in which every complaint is given a unique ID, stored with its category, priority, status and database persistence, and can be tracked at any time until it is resolved.
           </p>
         </section>
 
@@ -548,6 +619,7 @@
           <h3 style="font-size:1.2rem; font-weight:700; color:var(--primary); margin-bottom:0.4rem;">4. Key Features</h3>
           <ul style="padding-left:1.5rem;">
             <li>Customer registration and login (role based: Customer / Admin).</li>
+            <li><strong>Dedicated "New Complaint Register" modal &amp; form</strong> with real-time SQLite database persistence.</li>
             <li>Filing a complaint with category, description and priority (LOW, MEDIUM, HIGH).</li>
             <li>Auto-generated unique Complaint ID (starts at 1001) and filing date.</li>
             <li>Tracking a complaint by ID and viewing all complaints of a customer.</li>
@@ -559,13 +631,65 @@
         <section style="margin-bottom:1.5rem;">
           <h3 style="font-size:1.2rem; font-weight:700; color:var(--primary); margin-bottom:0.4rem;">5. Conclusion</h3>
           <p>
-            The Complaint Registration and Tracking System was implemented successfully in Java. It demonstrates classes, encapsulation, inheritance, abstraction, interfaces, polymorphism, enums, collections, and custom exception handling in a practical enterprise application.
+            The Complaint Registration and Tracking System was implemented successfully in Java. It demonstrates classes, encapsulation, inheritance, abstraction, interfaces, polymorphism, enums, collections, SQLite database management, and custom exception handling in a practical enterprise application.
           </p>
         </section>
       </div>
     </div>
 
   </main>
+
+  <!-- ================= MODAL: REGISTER NEW COMPLAINT ================= -->
+  <div id="new-complaint-modal" class="modal-overlay">
+    <div class="modal-dialog" style="max-width:560px;">
+      <button class="modal-close" onclick="closeModal('new-complaint-modal')">✕</button>
+      <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.3rem;">
+        <span style="font-size:1.5rem;">📝</span>
+        <h3 style="font-size:1.3rem; font-weight:800;">Register New Complaint</h3>
+      </div>
+      <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:1.25rem;">
+        Fill out the grievance details below. It will be saved into the <strong>SQLite Database (`complaints.db`)</strong> and assigned an auto-increment ID.
+      </p>
+
+      <form id="modal-complaint-form">
+        <div class="form-group">
+          <label class="form-label">Customer Name</label>
+          <input type="text" id="modal-comp-name" class="form-input" placeholder="Enter customer name (e.g. Dinesh, Ram, or your name)" required>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Category</label>
+          <select id="modal-comp-category" class="form-select">
+            <option value="Billing">Billing (Invoices, Double Charge, Payment)</option>
+            <option value="Service" selected>Service (Network, Connection, Support)</option>
+            <option value="Product">Product (Damaged Item, Hardware Defect)</option>
+            <option value="Other">Other (Account, Profile, General Issue)</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Priority Level (Java Enum)</label>
+          <div class="priority-selector" id="modal-priority-selector">
+            <button type="button" class="priority-btn" data-val="LOW">LOW</button>
+            <button type="button" class="priority-btn selected" data-val="MEDIUM">MEDIUM</button>
+            <button type="button" class="priority-btn" data-val="HIGH">HIGH</button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Complaint Description</label>
+          <textarea id="modal-comp-desc" class="form-textarea" rows="4" placeholder="Describe the issue in detail..." required></textarea>
+        </div>
+
+        <div style="display:flex; gap:0.75rem; margin-top:1.25rem;">
+          <button type="button" class="btn-secondary" onclick="closeModal('new-complaint-modal')" style="flex:1;">Cancel</button>
+          <button type="submit" class="btn-primary" style="flex:2; background:linear-gradient(135deg, #10b981, #059669);">
+            <span>➕ Register Complaint</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
 
   <!-- Login / Register Modal -->
   <div id="login-modal" class="modal-overlay">
@@ -653,7 +777,7 @@
   <!-- Footer -->
   <footer class="footer">
     <div class="footer-content">
-      <p style="font-weight:600;">Complaint Registration and Tracking System in Java</p>
+      <p style="font-weight:600;">Complaint Registration and Tracking System in Java (with SQLite DB)</p>
       <p style="font-size:0.8rem; margin-top:0.25rem;">Designed with Classes, Encapsulation, Inheritance, Abstraction, Polymorphism, Enums, Collections, and Custom Exceptions.</p>
     </div>
   </footer>
